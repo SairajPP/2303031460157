@@ -480,3 +480,6 @@ To maintain the top 10 efficiently in memory (e.g., in the client-side state), w
 - **Processing New Notifications:** As a new notification comes in via WebSocket, we compare its priority to the root of the Min-Heap in **O(1)** time.
 - **Insertion:** If the new notification has a higher priority or recency than the root, we extract the root and insert the new notification. The heap re-balances in **O(log K)** time.
 - **Performance:** Since $K$ is a small constant (10), maintaining the top 10 takes effectively **O(1)** time per incoming notification, providing blazing-fast Priority Inbox updates without full array re-sorting.
+
+<img width="1900" height="862" alt="image" src="https://github.com/user-attachments/assets/4e4af487-f823-4049-86d6-5d7d40019f51" />
+
