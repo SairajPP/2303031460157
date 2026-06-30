@@ -1,5 +1,6 @@
 export class Logger {
   constructor(serviceName = 'App') {
+    // keeping it simple for now, might migrate to winston if we need file transports later
     this.serviceName = serviceName;
   }
 
@@ -27,10 +28,12 @@ export class Logger {
 }
 
 // Express request logging middleware
+// replaces those raw console.logs we had scattered everywhere
 export const requestLogger = (req, res, next) => {
   const logger = new Logger('HTTP');
   const start = Date.now();
   
+  // wait for the response to finish so we can grab the status code
   res.on('finish', () => {
     const duration = Date.now() - start;
     logger.info(`${req.method} ${req.originalUrl} ${res.statusCode} - ${duration}ms`);

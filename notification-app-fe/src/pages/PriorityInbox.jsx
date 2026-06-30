@@ -38,12 +38,13 @@ export const PriorityInbox = () => {
         
         if (mounted) {
           // Client-side Priority Sorting
+          // We use spread [...] to avoid mutating the original array from the API
           const sorted = [...data].sort((a, b) => {
             const weightA = WEIGHTS[a.Type] || 0;
             const weightB = WEIGHTS[b.Type] || 0;
             
             if (weightA !== weightB) {
-              return weightB - weightA;
+              return weightB - weightA; // sort by weight descending
             }
             
             const timeA = new Date(a.Timestamp).getTime();

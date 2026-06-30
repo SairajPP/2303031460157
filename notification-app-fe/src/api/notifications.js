@@ -10,8 +10,10 @@ const API_TOKEN = import.meta.env.VITE_API_TOKEN;
  * @param {Object} params - { limit, page, notification_type }
  */
 export const fetchNotifications = async (params = {}) => {
+  // Use relative URL to leverage the Vite proxy (fixes CORS issues!)
   const url = new URL(`${API_BASE_URL}/notifications`, window.location.origin);
   
+  // append our filters if they exist
   if (params.limit) url.searchParams.append('limit', params.limit);
   if (params.page) url.searchParams.append('page', params.page);
   if (params.notification_type) url.searchParams.append('notification_type', params.notification_type);

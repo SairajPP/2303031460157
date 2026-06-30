@@ -4,6 +4,7 @@ import { Logger } from 'logging-middleware';
 const logger = new Logger('FrontendHooks');
 
 export const useViewedState = () => {
+  // lazy initialize state to avoid hitting localStorage on every render cycle
   const [viewedIds, setViewedIds] = useState(() => {
     try {
       const stored = localStorage.getItem('viewed_notifications');
