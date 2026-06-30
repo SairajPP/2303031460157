@@ -331,3 +331,47 @@ WHERE notificationType = 'Placement'
   AND createdAt >= NOW() - INTERVAL '7 days';
 ```
 *(Note: Syntax for date subtraction may vary slightly depending on the specific SQL dialect—like `DATE_SUB()` in MySQL or `INTERVAL` in PostgreSQL—but the logical approach remains the same).*
+
+---
+
+# Stage 4
+
+## Performance Improvement Strategy: Mitigating Database Overload
+
+If notifications are being fetched directly from the database on every single page load for every student, the database will quickly become a bottleneck, leading to degraded performance. To solve this, we need to shift the read load away from the primary database and reduce the frequency of API calls.
+
+Here are the recommended strategies to improve performance, along with their tradeoffs:
+
+### 1. In-Memory Caching (Redis)
+Instead of querying the SQL/NoSQL database on every page load, we cache the most recent notifications (e.g., the first page or top 20 notifications) for each user in an in-memory datastore like Redis. 
+- **How it works:** When a user loads a page, the API checks Redis first. If the cache exists (Cache Hit), it returns the data instantly. If not (Cache Miss), it queries the DB, stores the result in Redis, and returns the data. When a new notification is generated or a notification is marked as read, the cache for that specific user is invalidated or updated.
+- **Tradeoffs:**
+  - **Pros:** Extremely fast read times (sub-millisecond). Drastically reduces the load on the primary database.
+  - **Cons:** High memory cost (Redis RAM is more expensive than disk storage). Cache invalidation logic can become complex and lead to "stale data" bugs if not handled perfectly.
+
+### 2. Client-Side Caching & State Persistence
+Leverage the user's browser to store notification data across page reloads.
+- **How it works:** When notifications are fetched for the first time, the frontend stores them in `localStorage`, `sessionStorage`, or IndexedDB. On subsequent page loads, the frontend immediately displays the cached notifications. The client can then make a lightweight API call (passing a `last_sync_timestamp`) to only fetch new notifications that arrived since the last check, rather than fetching the entire list.
+- **Tradeoffs:**
+  - **Pros:** Zero database or server load for rendering the initial view on page loads. Excellent perceived performance for the user (instant load).
+  - **Cons:** If a user logs in from a different device, their local cache won't have the data, requiring a full fetch. Data might be momentarily out-of-sync across multiple browser tabs until the lightweight sync completes.
+
+### 3. Transitioning to Real-Time Push (WebSockets/SSE)
+Instead of the client requesting data on page load, the server pushes data to the client when it happens.
+- **How it works:** When a student logs in, they establish a single WebSocket or Server-Sent Events (SSE) connection. Combined with a Single Page Application (SPA) architecture (like React or Vue), the page doesn't fully reload when navigating. The client maintains the notification state in memory (e.g., Redux) and updates it dynamically via WebSocket events.
+- **Tradeoffs:**
+  - **Pros:** Eliminates the need for polling or repetitive page-load fetching. Provides a true real-time, instantaneous user experience.
+  - **Cons:** Holding open thousands of persistent connections requires significant server resources (memory and open file descriptors) and requires a robust load-balancing strategy (e.g., sticky sessions, Redis Pub/Sub backplane).
+
+### 4. Cursor-Based Pagination
+If the DB must be queried, optimize *how* it is queried. Offset-based pagination (`OFFSET X LIMIT Y`) becomes very slow for deep pages because the DB still scans the offset rows.
+- **How it works:** Use cursor-based pagination where the client passes the `id` or `createdAt` timestamp of the last notification they saw. The query becomes `WHERE createdAt < cursor LIMIT 20`.
+- **Tradeoffs:**
+  - **Pros:** Query performance remains constant O(1) regardless of how deep the user scrolls.
+  - **Cons:** Doesn't stop the initial page load query, it just makes deep scrolling faster. Users cannot "jump" to a specific page number (e.g., Page 5).
+
+### Recommended Implementation
+A hybrid approach is usually best:
+1. Implement **Client-Side Caching** to instantly render the UI on page loads without waiting for the network.
+2. Use **Redis** to serve the lightweight "fetch new notifications" API calls to protect the primary DB.
+3. Migrate the frontend to an SPA (if not already) and use **WebSockets** for real-time delivery to prevent the need for fetching on route changes entirely.
