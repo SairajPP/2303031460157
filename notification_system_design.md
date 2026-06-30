@@ -375,3 +375,77 @@ A hybrid approach is usually best:
 1. Implement **Client-Side Caching** to instantly render the UI on page loads without waiting for the network.
 2. Use **Redis** to serve the lightweight "fetch new notifications" API calls to protect the primary DB.
 3. Migrate the frontend to an SPA (if not already) and use **WebSockets** for real-time delivery to prevent the need for fetching on route changes entirely.
+
+---
+
+# Stage 5
+
+## Pseudocode Analysis & Shortcomings
+
+The provided pseudocode outlines a synchronous, tightly-coupled implementation for dispatching 50,000 notifications:
+```text
+function notify_all(student_ids: array, message: string):
+    for student_id in student_ids:
+        send_email(student_id, message) 
+        save_to_db(student_id, message) 
+        push_to_app(student_id, message) 
+```
+
+**Shortcomings Observed:**
+1. **Synchronous Blocking:** The loop runs sequentially on a single thread. Sending 50,000 emails over HTTP sequentially will take hours, freezing the HR's request and tying up server resources.
+2. **Lack of Fault Tolerance (The "Failed 200" Problem):** If the `send_email` call fails (e.g., due to a temporary network issue or API rate limit) and throws an unhandled exception on the 10,000th student, the entire loop crashes. The remaining 40,000 students never receive their notifications, and there is no record of where the script failed to safely resume it. The 200 students who failed are lost forever without a retry mechanism.
+3. **Tight Coupling & Cascading Failures:** If the Email API goes down, it prevents the system from saving to the DB and pushing to the app. A failure in one external system cascades to bring down internal systems.
+4. **Poor Database Performance:** Executing 50,000 individual `INSERT` statements sequentially is incredibly inefficient compared to a single batch insert.
+
+## Answering Architectural Questions
+
+**Logs indicate the 'send_email' failed for 200 students midway. What now?**
+With the current synchronous design, manual intervention is required. An engineer would have to parse the logs, extract the exact 200 student IDs that failed (and verify if subsequent students succeeded or if the process aborted entirely), and manually trigger a script for just those students. This is highly unscalable and error-prone.
+
+**Should the process of saving to DB as well as sending the email happen together? Why or why not?**
+**No, they should not happen together synchronously.** 
+*Why:* Saving to the DB is a fast, internal operation over a persistent connection. Sending an email relies on an external 3rd-party API (like SendGrid or AWS SES) over the public internet, which can suffer from latency, timeouts, and rate limits. If you couple them, a slow email API will block your database threads and deplete your connection pool, crashing the entire backend. They must be decoupled.
+
+## The Redesign (Reliable & Fast)
+
+To make this reliable and fast, we must transition to an **Event-Driven, Asynchronous Message Queue Architecture**.
+1. **Asynchronous Hand-off:** The HR API endpoint instantly accepts the request and publishes a single "Broadcast" event to a Message Queue (e.g., RabbitMQ, Kafka, AWS SQS).
+2. **Decoupled Workers:** Background workers consume from the queue independently. One worker handles DB batch inserts, another handles Emails, and a third handles WebSockets.
+3. **Retry Mechanisms & Dead Letter Queues (DLQ):** If an email fails, that specific task is safely retried with exponential backoff. If it fails 5 times, it is routed to a DLQ for monitoring, without impacting any other student's notification.
+
+## Revised Pseudocode
+
+```python
+# 1. API Endpoint Handler (Fast response to HR)
+function notify_all(student_ids: array, message: string):
+    # Enqueue a single broadcast payload to a Message Broker
+    enqueue_to_broker(queue="broadcast_events", payload={student_ids, message})
+    return "Notifications have been queued and are sending in the background."
+
+# 2. Main Broadcast Worker (Consumes 'broadcast_events' queue)
+function process_broadcast_event(payload):
+    # Perform a single batch insert for database efficiency
+    batch_save_to_db(payload.student_ids, payload.message)
+    
+    # Fan-out to independent queues for parallel processing
+    for student_id in payload.student_ids:
+        enqueue_to_broker(queue="email_tasks", payload={student_id, message})
+        enqueue_to_broker(queue="app_push_tasks", payload={student_id, message})
+
+# 3. Independent Email Worker (Reliable, Retriable)
+function process_email_task(payload):
+    try:
+        send_email(payload.student_id, payload.message)
+    except EmailDeliveryError:
+        # If API fails (e.g., those 200 students), the broker automatically 
+        # retries the task later. If it fails max_retries, it goes to a DLQ.
+        trigger_retry_with_backoff(payload)
+
+# 4. Independent WebSockets Worker (Consumes 'app_push_tasks' queue)
+function process_app_push_task(payload):
+    try:
+        push_to_app(payload.student_id, payload.message)
+    except ConnectionError:
+        # Ignore if user is offline, or handle gracefully without impacting DB/Emails
+        pass
+```
