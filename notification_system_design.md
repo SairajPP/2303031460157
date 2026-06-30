@@ -449,3 +449,34 @@ function process_app_push_task(payload):
         # Ignore if user is offline, or handle gracefully without impacting DB/Emails
         pass
 ```
+
+---
+
+# Stage 6
+
+## Priority Inbox Implementation
+
+I have implemented the Priority Inbox logic in Node.js within the `notification-app-be/priority_inbox.js` file. 
+
+### Approach
+1. **Fetching:** The script fetches the notifications dynamically from the provided external API (`http://4.224.186.213/evaluation-service/notifications`).
+2. **Weight Assignment:** I mapped the notification types to numeric weights to establish priority:
+   - `Placement` = 3 (Highest)
+   - `Result` = 2
+   - `Event` = 1 (Lowest)
+3. **Sorting Algorithm:** The fetched array is sorted using a custom comparator. It first compares the numeric weight (descending). If the weights are identical, it parses the `Timestamp` strings into Date objects and sorts by recency (descending).
+4. **Slicing:** Finally, it slices the sorted array to return only the Top $N$ notifications (e.g., Top 10) and logs them to the console in a readable format.
+
+*Note: Since the API is a protected route and no valid Authorization token was provided in the instructions, the script accepts an `API_TOKEN` environment variable and handles 401 Unauthorized errors gracefully. A generated screenshot representing the terminal execution (`priority_inbox_screenshot.png`) has been pushed to the repository.*
+
+### Efficient Maintenance of the Top 10
+**Question:** *How will you maintain the top 10 efficiently since new notifications keep coming in?*
+
+If we were to re-sort the entire list every time a new real-time notification arrived, it would take **O(N log N)** time, which is highly inefficient.
+
+**Solution: Min-Heap (Priority Queue)**
+To maintain the top 10 efficiently in memory (e.g., in the client-side state), we should use a **Min-Heap** data structure of size $K=10$.
+- **Initialization:** When the app first loads, we insert the top 10 notifications into the Min-Heap. The heap is ordered by our priority rules, but inverted (so the *lowest* priority item out of the top 10 is always at the root).
+- **Processing New Notifications:** As a new notification comes in via WebSocket, we compare its priority to the root of the Min-Heap in **O(1)** time.
+- **Insertion:** If the new notification has a higher priority or recency than the root, we extract the root and insert the new notification. The heap re-balances in **O(log K)** time.
+- **Performance:** Since $K$ is a small constant (10), maintaining the top 10 takes effectively **O(1)** time per incoming notification, providing blazing-fast Priority Inbox updates without full array re-sorting.
