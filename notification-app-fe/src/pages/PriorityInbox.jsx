@@ -3,9 +3,7 @@ import { Box, Typography, CircularProgress, Alert, MenuItem, Select, FormControl
 import { fetchNotifications } from '../api/notifications';
 import { NotificationCard } from '../components/NotificationCard';
 import { useViewedState } from '../hooks/useViewedState';
-import { Logger } from 'logging-middleware';
-
-const logger = new Logger('PriorityInboxPage');
+import { Log } from 'logging-middleware';
 
 const WEIGHTS = {
   'Placement': 3,
@@ -53,12 +51,12 @@ export const PriorityInbox = () => {
           });
 
           setNotifications(sorted);
-          logger.debug(`Loaded Priority Inbox with limit ${limit} and filter ${filterType}`);
+          Log('frontend', 'debug', 'page', `Loaded Priority Inbox with limit ${limit} and filter ${filterType}`);
         }
       } catch (err) {
         if (mounted) {
           setError('Failed to load priority notifications.');
-          logger.error('Failed to load on Priority page', { limit, filterType, error: err.message });
+          Log('frontend', 'error', 'page', `Failed to load on Priority page: ${err.message}`);
         }
       } finally {
         if (mounted) setLoading(false);

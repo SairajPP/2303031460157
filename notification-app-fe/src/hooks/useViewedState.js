@@ -1,7 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Logger } from 'logging-middleware';
-
-const logger = new Logger('FrontendHooks');
+import { useState } from 'react';
+import { Log } from 'logging-middleware';
 
 export const useViewedState = () => {
   // lazy initialize state to avoid hitting localStorage on every render cycle
@@ -10,7 +8,7 @@ export const useViewedState = () => {
       const stored = localStorage.getItem('viewed_notifications');
       return stored ? JSON.parse(stored) : [];
     } catch (e) {
-      logger.error('Error parsing viewed notifications from localStorage', { error: e.message });
+      Log('frontend', 'error', 'hook', `Error parsing viewed notifications from localStorage: ${e.message}`);
       return [];
     }
   });
@@ -21,9 +19,9 @@ export const useViewedState = () => {
       setViewedIds(newViewed);
       try {
         localStorage.setItem('viewed_notifications', JSON.stringify(newViewed));
-        logger.debug(`Notification marked as viewed: ${id}`);
+        Log('frontend', 'debug', 'hook', `Notification marked as viewed: ${id}`);
       } catch (e) {
-        logger.error('Error saving viewed notifications to localStorage', { error: e.message });
+        Log('frontend', 'error', 'hook', `Error saving viewed notifications to localStorage: ${e.message}`);
       }
     }
   };

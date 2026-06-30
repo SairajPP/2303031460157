@@ -3,5 +3,8 @@
   "version": "1.0.0",
   "description": "Custom logging middleware for Campus Notification System",
   "main": "index.js",
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "isomorphic-fetch": "^3.0.0"
+  }
 }

@@ -1,6 +1,4 @@
-import { Logger } from 'logging-middleware';
-
-const logger = new Logger('FrontendAPI');
+import { Log } from 'logging-middleware';
 
 const API_BASE_URL = '/evaluation-service';
 const API_TOKEN = import.meta.env.VITE_API_TOKEN;
@@ -18,7 +16,7 @@ export const fetchNotifications = async (params = {}) => {
   if (params.page) url.searchParams.append('page', params.page);
   if (params.notification_type) url.searchParams.append('notification_type', params.notification_type);
 
-  logger.info(`Fetching notifications: ${url.toString()}`, params);
+  Log('frontend', 'info', 'api', `Fetching notifications: ${url.toString()}`);
   const start = Date.now();
 
   try {
@@ -33,16 +31,16 @@ export const fetchNotifications = async (params = {}) => {
     const duration = Date.now() - start;
 
     if (!response.ok) {
-      logger.error(`API Error ${response.status} fetching notifications - ${duration}ms`);
+      Log('frontend', 'error', 'api', `API Error ${response.status} fetching notifications - ${duration}ms`);
       throw new Error(`API Error: ${response.status}`);
     }
 
     const data = await response.json();
-    logger.info(`Successfully fetched ${data.notifications?.length || 0} notifications - ${duration}ms`);
+    Log('frontend', 'info', 'api', `Successfully fetched ${data.notifications?.length || 0} notifications - ${duration}ms`);
     return data.notifications || [];
   } catch (error) {
     const duration = Date.now() - start;
-    logger.error(`Network or parse error fetching notifications - ${duration}ms`, { error: error.message });
+    Log('frontend', 'error', 'api', `Network or parse error fetching notifications - ${duration}ms. ${error.message}`);
     throw error;
   }
 };

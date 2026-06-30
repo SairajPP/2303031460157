@@ -4,9 +4,10 @@ import { ThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { Layout } from './components/Layout';
 import { AllNotifications } from './pages/AllNotifications';
 import { PriorityInbox } from './pages/PriorityInbox';
-import { Logger } from 'logging-middleware';
+import { Log, setLogToken } from 'logging-middleware';
 
-const logger = new Logger('AppRoot');
+// Initialize the log token using Vite's env variables
+setLogToken(import.meta.env.VITE_API_TOKEN);
 
 const theme = createTheme({
   palette: {
@@ -22,7 +23,7 @@ const theme = createTheme({
 
 export default function App() {
   React.useEffect(() => {
-    logger.info('Frontend application initialized');
+    Log('frontend', 'info', 'config', 'Frontend application initialized');
   }, []);
 
   return (

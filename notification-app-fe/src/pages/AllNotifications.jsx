@@ -3,9 +3,7 @@ import { Box, Typography, Pagination, CircularProgress, Alert } from '@mui/mater
 import { fetchNotifications } from '../api/notifications';
 import { NotificationCard } from '../components/NotificationCard';
 import { useViewedState } from '../hooks/useViewedState';
-import { Logger } from 'logging-middleware';
-
-const logger = new Logger('AllNotificationsPage');
+import { Log } from 'logging-middleware';
 
 export const AllNotifications = () => {
   const [notifications, setNotifications] = useState([]);
@@ -25,12 +23,12 @@ export const AllNotifications = () => {
         const data = await fetchNotifications({ page, limit });
         if (mounted) {
           setNotifications(data);
-          logger.debug(`Loaded page ${page} with ${data.length} items`);
+          Log('frontend', 'debug', 'page', `Loaded page ${page} with ${data.length} items`);
         }
       } catch (err) {
         if (mounted) {
           setError('Failed to load notifications. Please try again.');
-          logger.error('Failed to load notifications on All page', { page, error: err.message });
+          Log('frontend', 'error', 'page', `Failed to load notifications on All page: ${err.message}`);
         }
       } finally {
         if (mounted) setLoading(false);

@@ -1,26 +1,38 @@
 import express from 'express';
 import cors from 'cors';
+import { Log, setLogToken } from 'logging-middleware';
 import dotenv from 'dotenv';
-import { Logger, requestLogger } from 'logging-middleware';
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const logger = new Logger('BackendServer');
+const PORT = process.env.PORT || 3001;
 
-// Middleware
 app.use(cors());
 app.use(express.json());
-app.use(requestLogger); // Use our custom logging middleware
 
-// Basic health check endpoint
-app.get('/api/health', (req, res) => {
-  logger.info('Health check endpoint called');
-  res.status(200).json({ status: 'ok', message: 'Notification API is running' });
+// Initialize the log token for the backend
+if (process.env.VITE_API_TOKEN) {
+  setLogToken(process.env.VITE_API_TOKEN);
+}
+
+// Global request logger
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    Log('backend', 'info', 'route', `Handled ${req.method} ${req.originalUrl} - ${res.statusCode} in ${duration}ms`);
+  });
+  next();
 });
 
+// Basic health route
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', uptime: process.uptime() });
+});
+
+// Start server
 app.listen(PORT, () => {
-  logger.info(`Server is starting...`);
-  logger.info(`Backend listening on port ${PORT}`);
+  Log('backend', 'info', 'config', `Server started successfully on port ${PORT}`);
+  console.log(`Notification Backend running on port ${PORT}`);
 });
